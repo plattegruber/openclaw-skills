@@ -1,170 +1,147 @@
-# YNAB Skills for OpenClaw
+# OpenClaw Skills & Plugins
 
-A family of OpenClaw skills for managing your YNAB (You Need A Budget) through AI assistance.
+A collection of OpenClaw plugins and skills for extending AI assistant capabilities.
 
-## Skills Included
+## Plugins
 
-| Skill | Command | Description |
-|-------|---------|-------------|
-| `ynab` | (auto) | Core API reference - loaded automatically when other skills run |
-| `ynab-config` | `/ynab-config` | **Start here!** Select budget, check account links, view status |
-| `ynab-categorize` | `/ynab-categorize` | Categorize uncategorized transactions |
-| `ynab-credit-cards` | `/ynab-credit-cards` | Check credit card payment readiness |
-| `ynab-budget` | `/ynab-budget` | Adjust budget category amounts |
-| `ynab-trends` | `/ynab-trends` | Analyze spending trends over time |
+### YNAB Budget Manager
 
-## Setup
+A comprehensive YNAB (You Need A Budget) integration plugin.
 
-### 1. Generate a YNAB Personal Access Token
+**Location:** `plugins/ynab-budget-manager/`
 
-1. Log in to [YNAB](https://app.ynab.com)
-2. Go to **Account Settings** (click your email in the bottom left)
-3. Scroll down to **Developer Settings**
-4. Click **New Token**
-5. Give it a name (e.g., "OpenClaw")
-6. Copy the token (you won't see it again!)
+**Features:**
+- List budgets and select which to use
+- View accounts, transactions, categories, and monthly summaries
+- Categorize transactions (optional, opt-in)
+- Track credit card payment readiness
+- Multiple review modes for transaction management
+- Safety-first: write operations default to dry-run
 
-### 2. Configure OpenClaw
+**Quick Start:**
 
-Add your token to your OpenClaw configuration. Choose ONE of these methods:
+1. Generate a YNAB Personal Access Token at [app.ynab.com](https://app.ynab.com) → Account Settings → Developer Settings
 
-#### Option A: Environment Variable (Recommended)
-
-Add to your shell profile (`~/.zshrc`, `~/.bashrc`, etc.):
-
-```bash
-export YNAB_API_TOKEN="your-token-here"
-```
-
-Then restart your terminal or run `source ~/.zshrc`.
-
-#### Option B: OpenClaw Config File
-
-Add to `~/.openclaw/openclaw.json`:
+2. Configure the plugin in `~/.openclaw/openclaw.json`:
 
 ```json
 {
-  "skills": {
+  "plugins": {
     "entries": {
-      "ynab": {
-        "apiKey": "your-token-here"
+      "ynab-budget-manager": {
+        "enabled": true,
+        "config": {
+          "ynabToken": "your-token-here",
+          "writeToolsEnabled": true
+        }
       }
     }
   }
 }
 ```
 
-### 3. Install Skills
-
-Copy or symlink this skills directory to your OpenClaw skills folder:
+3. Install and build:
 
 ```bash
-# Option 1: Symlink (recommended for development)
-ln -s /path/to/openclaw-skills/skills/ynab ~/.openclaw/skills/ynab
-ln -s /path/to/openclaw-skills/skills/ynab-config ~/.openclaw/skills/ynab-config
-ln -s /path/to/openclaw-skills/skills/ynab-categorize ~/.openclaw/skills/ynab-categorize
-ln -s /path/to/openclaw-skills/skills/ynab-credit-cards ~/.openclaw/skills/ynab-credit-cards
-ln -s /path/to/openclaw-skills/skills/ynab-budget ~/.openclaw/skills/ynab-budget
-ln -s /path/to/openclaw-skills/skills/ynab-trends ~/.openclaw/skills/ynab-trends
-
-# Option 2: Copy
-cp -r /path/to/openclaw-skills/skills/* ~/.openclaw/skills/
+cd plugins/ynab-budget-manager
+npm install
+npm run build
 ```
 
-### 4. Create Log Directory
+4. Use the skill:
 
-The skills log all changes to `~/.ynab-logs/`:
+```
+/ynab-budget-manager
+
+> What transactions need to be categorized?
+> How are my credit cards looking?
+> Show me my spending this month
+```
+
+See [plugins/ynab-budget-manager/README.md](plugins/ynab-budget-manager/README.md) for full documentation.
+
+## Configuration
+
+### Environment Variables
+
+For sensitive values like API tokens, you can use environment variables:
 
 ```bash
-mkdir -p ~/.ynab-logs/budget-snapshots ~/.ynab-logs/trends
+export YNAB_API_TOKEN="your-token-here"
 ```
 
-## Usage
+Then reference in config:
 
-### First Time Setup
-
-Run `/ynab-config` to select which budget to use:
-
-```
-/ynab-config        # Select budget and check account status
-```
-
-### Budget Management
-
-Ask naturally about your budget selection:
-
-- "What budget am I using?"
-- "Switch to My New Budget"
-- "List my budgets"
-- "Check my account links"
-
-### Daily Operations
-
-```
-/ynab-categorize    # Review and categorize uncategorized transactions
-/ynab-credit-cards  # Check credit card payment status
-/ynab-budget        # View or adjust your budget
-/ynab-trends        # Analyze spending patterns
+```json
+{
+  "plugins": {
+    "entries": {
+      "ynab-budget-manager": {
+        "enabled": true,
+        "config": {
+          "ynabToken": "${YNAB_API_TOKEN}"
+        }
+      }
+    }
+  }
+}
 ```
 
-Or just ask naturally:
+### State and Logs
 
-- "What transactions need to be categorized?"
-- "How are my credit cards looking?"
-- "Show me my grocery spending over the last 6 months"
-- "Move $50 from Dining Out to Entertainment"
-
-### Account Link Warnings
-
-All skills automatically check for broken bank connections and will warn you:
-
-```
-⚠️  ACCOUNT LINK ALERT
-
-The following accounts have broken bank connections:
-  • Chase Checking - link needs reauthorization
-
-Log in to YNAB (app.ynab.com) and click on each account to reconnect.
-```
-
-## Philosophy: Glacial Changes
-
-These skills are designed to make **slow, deliberate changes** to your budget:
-
-- **Never auto-modify** - All changes require your explicit confirmation
-- **Log everything** - Full audit trail in `~/.ynab-logs/`
-- **Show before/after** - Always displays current state before changes
-- **Batch recommendations** - Collects suggestions for review, applies once
-- **Weekly trends** - Analysis designed for weekly review, not daily noise
-
-## Log Files
-
-All activity is logged to `~/.ynab-logs/`:
+Plugins store state in `~/.ynab-logs/` by default (configurable per plugin):
 
 ```
 ~/.ynab-logs/
-├── categorization.jsonl     # Transaction categorization history
-├── credit-cards.jsonl       # Credit card status checks
-├── budget-changes.jsonl     # Budget modifications
-├── budget-snapshots/        # Point-in-time budget snapshots
-├── trends/                  # Trend analysis cache
-│   └── category-trends.json
-├── payee-patterns.json      # Learned payee categorizations
-└── sync-state.json          # API delta sync state
+└── state.json          # Plugin state (selected budget, sync state, etc.)
 ```
 
-## API Rate Limits
+## Development
 
-YNAB allows **200 requests per hour**. These skills are designed to minimize API calls through:
+### Project Structure
 
-- Delta sync (only fetch changed data)
-- Caching of historical months
-- Batching of operations
+```
+├── plugins/
+│   └── ynab-budget-manager/    # TypeScript plugin
+│       ├── openclaw.plugin.json
+│       ├── package.json
+│       ├── tsconfig.json
+│       ├── index.ts
+│       ├── src/
+│       │   ├── types.ts
+│       │   ├── client.ts
+│       │   ├── state.ts
+│       │   ├── review.ts
+│       │   ├── credit-cards.ts
+│       │   ├── tools/
+│       │   └── utils/
+│       └── skills/
+│           └── ynab-budget-manager/
+│               └── SKILL.md
+└── README.md
+```
+
+### Building Plugins
+
+```bash
+cd plugins/ynab-budget-manager
+npm install
+npm run build
+```
+
+### Testing
+
+```bash
+npm test
+```
 
 ## Security
 
-Your YNAB token has full access to your budget. Keep it secure:
+- Never commit API tokens to git
+- Use environment variables for sensitive configuration
+- Plugins that modify data default to dry-run mode
+- Review plugin permissions before enabling write operations
 
-- Never commit tokens to git
-- Use environment variables, not command-line arguments
-- The token is non-expiring - revoke it in YNAB if compromised
+## License
+
+MIT

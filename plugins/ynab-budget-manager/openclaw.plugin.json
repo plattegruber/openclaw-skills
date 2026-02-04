@@ -1,0 +1,90 @@
+{
+  "id": "ynab-budget-manager",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "ynabToken": {
+        "type": "string",
+        "description": "YNAB Personal Access Token",
+        "sensitive": true
+      },
+      "budgetId": {
+        "type": "string",
+        "description": "Default budget ID to use. If not set, prompts user to select."
+      },
+      "reviewMode": {
+        "type": "string",
+        "enum": ["uncategorizedOnly", "categoryAllowlistBlocklist", "flagBased"],
+        "default": "uncategorizedOnly",
+        "description": "How to detect transactions needing review"
+      },
+      "syncLookbackDays": {
+        "type": "integer",
+        "default": 30,
+        "minimum": 1,
+        "maximum": 365,
+        "description": "Number of days to look back when syncing transactions"
+      },
+      "statePath": {
+        "type": "string",
+        "default": "~/.ynab-logs",
+        "description": "Path to store state and log files"
+      },
+      "writeToolsEnabled": {
+        "type": "boolean",
+        "default": false,
+        "description": "Enable write tools (categorize, add memo, set flag)"
+      },
+      "escapeHatchEnabled": {
+        "type": "boolean",
+        "default": false,
+        "description": "Enable raw API request tool"
+      },
+      "catchAllCategories": {
+        "type": "array",
+        "items": { "type": "string" },
+        "default": [],
+        "description": "Category names to treat as 'needs review' in categoryAllowlistBlocklist mode"
+      },
+      "reviewFlags": {
+        "type": "array",
+        "items": { "type": "string" },
+        "default": ["orange"],
+        "description": "Flag colors that indicate transactions need review in flagBased mode"
+      }
+    },
+    "required": [],
+    "uiHints": {
+      "ynabToken": {
+        "inputType": "password",
+        "helpText": "Generate at YNAB Account Settings > Developer Settings > New Token"
+      },
+      "budgetId": {
+        "helpText": "Leave blank to be prompted for budget selection"
+      },
+      "reviewMode": {
+        "helpText": "uncategorizedOnly: review only uncategorized transactions; categoryAllowlistBlocklist: review transactions in catch-all categories; flagBased: review flagged transactions"
+      }
+    }
+  },
+  "tools": {
+    "read": [
+      "ynab_list_budgets",
+      "ynab_get_accounts",
+      "ynab_get_recent_transactions",
+      "ynab_get_categories",
+      "ynab_get_month_summary"
+    ],
+    "write": [
+      "ynab_set_transaction_category",
+      "ynab_add_transaction_memo",
+      "ynab_set_transaction_flag"
+    ],
+    "escapeHatch": [
+      "ynab_api_request"
+    ]
+  },
+  "skills": [
+    "ynab-budget-manager"
+  ]
+}
