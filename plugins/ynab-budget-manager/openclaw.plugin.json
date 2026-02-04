@@ -78,7 +78,8 @@
     "write": [
       "ynab_set_transaction_category",
       "ynab_add_transaction_memo",
-      "ynab_set_transaction_flag"
+      "ynab_set_transaction_flag",
+      "ynab_set_category_budget"
     ],
     "escapeHatch": [
       "ynab_api_request"

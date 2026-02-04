@@ -13,7 +13,7 @@ import type {
   FlagColor,
   Transaction,
 } from "./src/types.js";
-import { milliunitsToDisplay } from "./src/utils/milliunits.js";
+import { milliunitsToDisplay, displayToMilliunits } from "./src/utils/milliunits.js";
 import { detectNeedsReview } from "./src/review.js";
 
 // Plugin configuration type
@@ -478,6 +478,71 @@ export default function register(api: OpenClawPluginApi) {
               dryRun,
               previousFlag: transaction.flag_color,
               newFlag: params.flagColor,
+            },
+          };
+        },
+      },
+      { optional: true }
+    );
+
+    // ynab_set_category_budget
+    api.registerTool(
+      {
+        name: "ynab_set_category_budget",
+        description: "Assign or update the budgeted amount for a category in a specific month. This is how you fund categories from 'Ready to Assign'. Amount is in dollars. Defaults to dry-run mode.",
+        parameters: {
+          type: "object",
+          properties: {
+            budgetId: { type: "string", description: "Budget ID" },
+            categoryId: { type: "string", description: "Category ID to fund" },
+            month: { type: "string", description: "Month in YYYY-MM-DD format (first of month). Defaults to current month." },
+            amount: { type: "number", description: "Amount to budget in dollars (e.g., 500 for $500.00). This sets the total budgeted amount." },
+            dryRun: { type: "boolean", description: "Preview only (default: true)" },
+          },
+          required: ["categoryId", "amount"],
+        },
+        async execute(_id: string, params: Record<string, unknown>) {
+          const budgetId = resolveBudgetId(params.budgetId as string | undefined, state, config);
+          if (!budgetId) {
+            throw new Error("No budget selected.");
+          }
+
+          const dryRun = params.dryRun !== false;
+
+          // Get current month if not specified
+          const now = new Date();
+          const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+          const month = (params.month as string) || defaultMonth;
+
+          // Get current category state
+          const { category } = await client.getCategoryForMonth(budgetId, month, params.categoryId as string);
+          const previousBudgeted = milliunitsToDisplay(category.budgeted);
+          const previousBalance = milliunitsToDisplay(category.balance);
+
+          const newAmount = params.amount as number;
+          const budgetChange = newAmount - previousBudgeted;
+          const estimatedNewBalance = previousBalance + budgetChange;
+
+          if (!dryRun) {
+            const budgetedMilliunits = displayToMilliunits(newAmount);
+            await client.updateCategoryForMonth(budgetId, month, params.categoryId as string, budgetedMilliunits);
+          }
+
+          const text = dryRun
+            ? `[DRY RUN] Would set "${category.name}" budget from $${previousBudgeted.toFixed(2)} to $${newAmount.toFixed(2)} (change: ${budgetChange >= 0 ? '+' : ''}$${budgetChange.toFixed(2)})`
+            : `Set "${category.name}" budget from $${previousBudgeted.toFixed(2)} to $${newAmount.toFixed(2)} (change: ${budgetChange >= 0 ? '+' : ''}$${budgetChange.toFixed(2)})`;
+
+          return {
+            content: [{ type: "text", text }],
+            details: {
+              dryRun,
+              categoryId: params.categoryId,
+              categoryName: category.name,
+              month,
+              previousBudgeted,
+              newBudgeted: newAmount,
+              previousBalance,
+              estimatedNewBalance,
             },
           };
         },

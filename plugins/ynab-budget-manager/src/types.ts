@@ -514,6 +514,26 @@ export interface SetTransactionFlagOutput {
   newFlagColor: FlagColor;
 }
 
+export interface SetCategoryBudgetInput {
+  budgetId?: string;
+  categoryId: string;
+  month?: string; // YYYY-MM-DD format, defaults to current month
+  amount: number; // dollars (will be converted to milliunits)
+  dryRun?: boolean; // defaults to true
+}
+
+export interface SetCategoryBudgetOutput {
+  success: boolean;
+  dryRun: boolean;
+  categoryId: string;
+  categoryName: string;
+  month: string;
+  previousBudgeted: number; // dollars
+  newBudgeted: number; // dollars
+  previousBalance: number; // dollars
+  newBalance: number; // dollars (estimated)
+}
+
 // Escape hatch types
 
 export interface ApiRequestInput {

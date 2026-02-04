@@ -14,8 +14,11 @@ import type {
   AddTransactionMemoOutput,
   SetTransactionFlagInput,
   SetTransactionFlagOutput,
+  SetCategoryBudgetInput,
+  SetCategoryBudgetOutput,
   FlagColor,
 } from '../types';
+import { displayToMilliunits, milliunitsToDisplay } from '../utils/milliunits';
 
 export interface ToolContext {
   client: YNABClient;
@@ -271,6 +274,107 @@ export const setTransactionFlagDefinition = {
 };
 
 // ============================================================================
+// ynab_set_category_budget
+// ============================================================================
+
+/**
+ * Get current month in YYYY-MM-DD format (first of month)
+ */
+function getCurrentMonth(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}-01`;
+}
+
+export async function setCategoryBudget(
+  input: SetCategoryBudgetInput,
+  ctx: ToolContext
+): Promise<SetCategoryBudgetOutput> {
+  const budgetId = resolveBudgetId(input.budgetId, ctx.state, ctx.config);
+  if (!budgetId) {
+    throw new Error('No budget selected. Use ynab_list_budgets to see available budgets, then select one.');
+  }
+
+  // Default to dry run for safety
+  const dryRun = input.dryRun !== false;
+
+  // Use provided month or current month
+  const month = input.month || getCurrentMonth();
+
+  // Convert dollars to milliunits
+  const budgetedMilliunits = displayToMilliunits(input.amount);
+
+  // Get current category state for this month
+  const { category: currentCategory } = await ctx.client.getCategoryForMonth(budgetId, month, input.categoryId);
+
+  const previousBudgeted = milliunitsToDisplay(currentCategory.budgeted);
+  const previousBalance = milliunitsToDisplay(currentCategory.balance);
+
+  // Estimate new balance (previous balance + change in budgeted)
+  const budgetChange = input.amount - previousBudgeted;
+  const estimatedNewBalance = previousBalance + budgetChange;
+
+  const result: SetCategoryBudgetOutput = {
+    success: true,
+    dryRun,
+    categoryId: input.categoryId,
+    categoryName: currentCategory.name,
+    month,
+    previousBudgeted,
+    newBudgeted: input.amount,
+    previousBalance,
+    newBalance: estimatedNewBalance,
+  };
+
+  if (!dryRun) {
+    // Actually update the category budget
+    const { category: updatedCategory } = await ctx.client.updateCategoryForMonth(
+      budgetId,
+      month,
+      input.categoryId,
+      budgetedMilliunits
+    );
+    // Use actual new balance from API
+    result.newBalance = milliunitsToDisplay(updatedCategory.balance);
+  }
+
+  return result;
+}
+
+export const setCategoryBudgetDefinition = {
+  name: 'ynab_set_category_budget',
+  description: 'Assign or update the budgeted amount for a category in a specific month. This is how you fund categories from "Ready to Assign". Amount is in dollars. Defaults to dry-run mode - set dryRun: false to actually apply the change.',
+  inputSchema: {
+    type: 'object' as const,
+    properties: {
+      budgetId: {
+        type: 'string',
+        description: 'Budget ID (optional - uses selected budget if not provided)',
+      },
+      categoryId: {
+        type: 'string',
+        description: 'The category ID to fund',
+      },
+      month: {
+        type: 'string',
+        description: 'Month in YYYY-MM-DD format (first of month, e.g., "2025-02-01"). Defaults to current month.',
+      },
+      amount: {
+        type: 'number',
+        description: 'Amount to budget in dollars (e.g., 500 for $500.00). This sets the total budgeted amount, not an increment.',
+      },
+      dryRun: {
+        type: 'boolean',
+        description: 'If true (default), only preview the change without applying it. Set to false to actually assign money.',
+        default: true,
+      },
+    },
+    required: ['categoryId', 'amount'] as string[],
+  },
+};
+
+// ============================================================================
 // Export all write tools
 // ============================================================================
 
@@ -278,10 +382,12 @@ export const writeToolDefinitions = [
   setTransactionCategoryDefinition,
   addTransactionMemoDefinition,
   setTransactionFlagDefinition,
+  setCategoryBudgetDefinition,
 ];
 
 export const writeToolHandlers = {
   ynab_set_transaction_category: setTransactionCategory,
   ynab_add_transaction_memo: addTransactionMemo,
   ynab_set_transaction_flag: setTransactionFlag,
+  ynab_set_category_budget: setCategoryBudget,
 };
