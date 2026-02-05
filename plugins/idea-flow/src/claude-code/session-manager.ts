@@ -1,8 +1,9 @@
 /**
  * Claude Code Session Manager
- * Manages Claude Code web sessions for issue creation, planning, and implementation
+ * Manages Claude Code sessions via CLI subprocess for issue creation, planning, and implementation
  */
 
+import { spawn, type ChildProcess } from 'child_process';
 import type {
   PluginConfig,
   SessionPurpose,
@@ -10,14 +11,21 @@ import type {
   SessionStartResult,
   SessionResumeResult,
   StreamMessage,
-  ClarificationEntry,
-  ImplementationPlan,
 } from '../types.js';
 
+export interface ClaudeSessionOptions {
+  model?: 'opus' | 'sonnet' | 'haiku';
+  maxTurns?: number;
+  allowedTools?: string[];
+  resume?: string;
+  verbose?: boolean;
+}
+
 /**
- * Manages Claude Code web sessions
- * Note: In production, this would use the Claude Agent SDK for programmatic control
- * For now, this provides the interface and prompt generation
+ * Manages Claude Code sessions via CLI subprocess
+ *
+ * Uses the claude CLI with --print --output-format stream-json flags
+ * to programmatically control Claude Code sessions.
  */
 export class ClaudeCodeSessionManager {
   private config: PluginConfig;
@@ -27,43 +35,33 @@ export class ClaudeCodeSessionManager {
   }
 
   /**
-   * Start a Claude Code web session for a specific purpose
-   * In production, this would use the Claude Agent SDK
+   * Start a Claude Code session for a specific purpose
    */
   async startSession(
     purpose: SessionPurpose,
     params: SessionParams
   ): Promise<SessionStartResult> {
     const prompt = this.buildPrompt(purpose, params);
-    const sessionId = this.generateSessionId();
+    const allowedTools = this.getToolsForPurpose(purpose);
 
-    // In production, this would call the Claude Agent SDK:
-    // const response = await query({
-    //   prompt,
-    //   options: {
-    //     model: "claude-sonnet-4-5",
-    //     allowedTools: this.getToolsForPurpose(purpose),
-    //     remote: true,
-    //     environment: this.config.claudeCodeEnvironment
-    //   }
-    // });
+    const options: ClaudeSessionOptions = {
+      model: 'sonnet',
+      allowedTools,
+      verbose: true,
+    };
 
-    // For now, return a simulated result with the generated prompt
-    // The actual execution would happen in the Claude Code web session
+    const messages = await this.runClaudeSession(prompt, options);
+
+    // Extract session ID from system message
+    const systemMessage = messages.find(
+      (m) => m.type === 'system' && m.subtype === 'init'
+    );
+    const sessionId = systemMessage?.session_id || this.generateSessionId();
+
     return {
       sessionId,
       claudeCodeUrl: `https://claude.ai/code/session_${sessionId}`,
-      messages: [
-        {
-          type: 'system',
-          subtype: 'init',
-          session_id: sessionId,
-        },
-        {
-          type: 'prompt',
-          content: prompt,
-        },
-      ],
+      messages,
     };
   }
 
@@ -73,21 +71,139 @@ export class ClaudeCodeSessionManager {
   async resumeSession(
     sessionId: string,
     additionalPrompt: string,
-    fork: boolean = false
+    _fork: boolean = false
   ): Promise<SessionResumeResult> {
-    // In production, this would use the Claude Agent SDK to resume
-    // For now, return the additional prompt context
-    const newSessionId = fork ? this.generateSessionId() : sessionId;
+    const options: ClaudeSessionOptions = {
+      model: 'sonnet',
+      resume: sessionId,
+      verbose: true,
+    };
+
+    const messages = await this.runClaudeSession(additionalPrompt, options);
+
+    // Check if we got a new session ID (forked)
+    const systemMessage = messages.find(
+      (m) => m.type === 'system' && m.subtype === 'init'
+    );
+    const newSessionId = systemMessage?.session_id || sessionId;
 
     return {
       sessionId: newSessionId,
-      messages: [
-        {
-          type: 'prompt',
-          content: additionalPrompt,
-        },
-      ],
+      messages,
     };
+  }
+
+  /**
+   * Run a Claude CLI session and collect all messages
+   */
+  private runClaudeSession(
+    prompt: string,
+    options: ClaudeSessionOptions
+  ): Promise<StreamMessage[]> {
+    return new Promise((resolve, reject) => {
+      const args = this.buildCliArgs(prompt, options);
+      const messages: StreamMessage[] = [];
+
+      let proc: ChildProcess;
+      try {
+        proc = spawn('claude', args, {
+          stdio: ['pipe', 'pipe', 'pipe'],
+          env: process.env,
+        });
+      } catch (error) {
+        reject(new Error(`Failed to spawn claude CLI: ${error}`));
+        return;
+      }
+
+      let buffer = '';
+
+      proc.stdout?.on('data', (data: Buffer) => {
+        buffer += data.toString();
+
+        // Parse newline-delimited JSON
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (line.trim()) {
+            try {
+              const message = JSON.parse(line) as StreamMessage;
+              messages.push(message);
+            } catch {
+              // Non-JSON output, log for debugging
+              console.error('[claude-session] Non-JSON output:', line.substring(0, 100));
+            }
+          }
+        }
+      });
+
+      proc.stderr?.on('data', (data: Buffer) => {
+        const stderr = data.toString();
+        // Claude CLI outputs progress to stderr, which is fine
+        if (!stderr.includes('Error') && !stderr.includes('error')) {
+          console.log('[claude-session] Progress:', stderr.trim());
+        } else {
+          console.error('[claude-session] Error:', stderr);
+        }
+      });
+
+      proc.on('error', (error) => {
+        reject(new Error(`Claude CLI error: ${error.message}`));
+      });
+
+      proc.on('close', (code) => {
+        // Process any remaining buffer
+        if (buffer.trim()) {
+          try {
+            const message = JSON.parse(buffer) as StreamMessage;
+            messages.push(message);
+          } catch {
+            // Ignore incomplete JSON
+          }
+        }
+
+        if (code === 0 || messages.length > 0) {
+          resolve(messages);
+        } else {
+          reject(new Error(`Claude CLI exited with code ${code}`));
+        }
+      });
+    });
+  }
+
+  /**
+   * Build CLI arguments for the claude command
+   */
+  private buildCliArgs(prompt: string, options: ClaudeSessionOptions): string[] {
+    const args: string[] = [
+      '--print',
+      '--output-format', 'stream-json',
+    ];
+
+    if (options.verbose) {
+      args.push('--verbose');
+    }
+
+    if (options.model) {
+      args.push('--model', options.model);
+    }
+
+    if (options.maxTurns) {
+      args.push('--max-turns', options.maxTurns.toString());
+    }
+
+    if (options.allowedTools && options.allowedTools.length > 0) {
+      args.push('--allowedTools', options.allowedTools.join(','));
+    }
+
+    if (options.resume) {
+      args.push('--resume', options.resume);
+    }
+
+    // Add the prompt as positional argument
+    args.push('--', prompt);
+
+    return args;
   }
 
   /**
@@ -216,25 +332,18 @@ Use:
       case 'issue_creation':
         return [...baseTools]; // Read-only + Bash for gh
       case 'planning':
-        return [...baseTools]; // Read-only exploration
+        return [...baseTools, 'Task']; // Add Task for Plan agent
       case 'implementation':
       case 'modification':
-        return [...baseTools, 'Edit', 'Write']; // Full write access
+        return [...baseTools, 'Edit', 'Write', 'Task']; // Full write access
     }
   }
 
   /**
-   * Generate a unique session ID
+   * Generate a unique session ID (fallback if not provided by CLI)
    */
   private generateSessionId(): string {
     return `${Date.now().toString(36)}${Math.random().toString(36).substring(2, 9)}`;
-  }
-
-  /**
-   * Get the prompt that was used for a session (for debugging)
-   */
-  getPromptForSession(purpose: SessionPurpose, params: SessionParams): string {
-    return this.buildPrompt(purpose, params);
   }
 }
 
