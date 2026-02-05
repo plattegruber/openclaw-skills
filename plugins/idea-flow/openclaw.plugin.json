@@ -1,0 +1,59 @@
+{
+  "id": "idea-flow",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultRepo": {
+        "type": "string",
+        "description": "Default repository (owner/repo format)"
+      },
+      "claudeCodeEnvironment": {
+        "type": "string",
+        "description": "Name of Claude Code web environment to use"
+      },
+      "statePath": {
+        "type": "string",
+        "default": "~/.idea-flow",
+        "description": "Path to store idea state files"
+      },
+      "autoNotify": {
+        "type": "boolean",
+        "default": true,
+        "description": "Automatically notify user when tasks complete"
+      },
+      "requirePlanBeforeImplement": {
+        "type": "boolean",
+        "default": true,
+        "description": "Require an implementation plan before starting implementation"
+      }
+    },
+    "required": ["defaultRepo"],
+    "uiHints": {
+      "defaultRepo": {
+        "helpText": "Format: owner/repo (e.g., myorg/myproject)"
+      },
+      "claudeCodeEnvironment": {
+        "helpText": "Leave blank to use default Claude Code environment"
+      }
+    }
+  },
+  "tools": {
+    "read": [
+      "idea_list",
+      "idea_status",
+      "idea_history"
+    ],
+    "write": [
+      "idea_capture",
+      "idea_clarify",
+      "idea_to_issue",
+      "idea_plan",
+      "idea_implement",
+      "idea_modify",
+      "idea_delete"
+    ]
+  },
+  "skills": [
+    "idea-flow"
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "name": "@openclaw/idea-flow",
+  "version": "1.0.0",
+  "description": "Idea-to-implementation pipeline via Claude Code for OpenClaw",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts",
+    "clean": "rm -rf dist"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.1.26"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "openclaw.plugin.json",
+    "skills"
+  ],
+  "keywords": [
+    "openclaw",
+    "openclaw-plugin",
+    "idea-flow",
+    "claude-code",
+    "github",
+    "issue-tracking"
+  ],
+  "license": "MIT"
+}
