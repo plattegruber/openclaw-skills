@@ -1,0 +1,74 @@
+{
+  "id": "google-calendar",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "clientId": {
+        "type": "string",
+        "description": "Google OAuth 2.0 Client ID",
+        "sensitive": false
+      },
+      "clientSecret": {
+        "type": "string",
+        "description": "Google OAuth 2.0 Client Secret",
+        "sensitive": true
+      },
+      "refreshToken": {
+        "type": "string",
+        "description": "OAuth 2.0 Refresh Token (obtained through initial authorization)",
+        "sensitive": true
+      },
+      "defaultCalendarId": {
+        "type": "string",
+        "default": "primary",
+        "description": "Default calendar ID. Use 'primary' for the user's main calendar."
+      },
+      "statePath": {
+        "type": "string",
+        "default": "~/.google-calendar-state",
+        "description": "Path to store state and token files"
+      },
+      "defaultTimeZone": {
+        "type": "string",
+        "description": "Default timezone for date display (e.g., 'America/New_York')"
+      },
+      "defaultLookAheadDays": {
+        "type": "integer",
+        "default": 7,
+        "minimum": 1,
+        "maximum": 365,
+        "description": "Default number of days to look ahead when listing events"
+      }
+    },
+    "required": ["clientId", "clientSecret", "refreshToken"],
+    "uiHints": {
+      "clientId": {
+        "helpText": "Create OAuth credentials at console.cloud.google.com/apis/credentials"
+      },
+      "clientSecret": {
+        "inputType": "password",
+        "helpText": "Keep this secret - do not commit to version control"
+      },
+      "refreshToken": {
+        "inputType": "password",
+        "helpText": "Obtained through OAuth authorization flow"
+      },
+      "defaultCalendarId": {
+        "helpText": "Use 'primary' for your main calendar, or a specific calendar ID"
+      }
+    }
+  },
+  "tools": {
+    "read": [
+      "gcal_list_calendars",
+      "gcal_list_events",
+      "gcal_get_event",
+      "gcal_get_upcoming",
+      "gcal_search_events",
+      "gcal_check_availability"
+    ]
+  },
+  "skills": [
+    "google-calendar"
+  ]
+}
